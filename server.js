@@ -1,35 +1,47 @@
 const express = require('express');
-const mysql = require('mysql2/promise');
+const mysql   = require('mysql2/promise');
 const session = require('express-session');
-const path = require('path');
-const multer = require('multer');
+const path    = require('path');
+const multer  = require('multer');
+const fs      = require('fs');
 
-const app = express();
+const app  = express();
 const PORT = process.env.PORT || 3000;
 
 // ─────────────────────────────────────────────────────────────
 // UPDATE THESE — hPanel → Databases → MySQL Databases
 // ─────────────────────────────────────────────────────────────
 const db = mysql.createPool({
-  host:     '127.0.0.1',                  // always localhost on Hostinger
-  user:     'u966260443_ppt',      // your DB username
-  password: 'Makelabs@123',            // your DB password
-  database: 'u966260443_ppt',      // your DB name
+  host:     '127.0.0.1',                  
+  user:     'u966260443_ppt',      
+  password: 'Makelabs@123',            
+  database: 'u966260443_ppt',     
   waitForConnections: true,
   connectionLimit: 10,
 });
 // ─────────────────────────────────────────────────────────────
 
-// Multer — upload images to uploads/images/
-const storage = multer.diskStorage({
-  destination: (req, file, cb) =>
-    cb(null, path.join(__dirname, 'uploads', 'images')),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + '-' + file.originalname),
-});
-const upload = multer({ storage });
+// Auto-create upload folders so "Upload error" never happens
+const UPLOADS_IMAGES = path.join(__dirname, 'uploads', 'images');
+const UPLOADS_PPTX   = path.join(__dirname, 'uploads', 'pptx');
+if (!fs.existsSync(UPLOADS_IMAGES)) fs.mkdirSync(UPLOADS_IMAGES, { recursive: true });
+if (!fs.existsSync(UPLOADS_PPTX))   fs.mkdirSync(UPLOADS_PPTX,   { recursive: true });
 
-app.set('db', db);
+// Multer — images only, max 10 MB
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_IMAGES),
+  filename:    (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+});
+const upload = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ok = /jpeg|jpg|png|gif|webp/.test(file.mimetype) &&
+               /\.(jpeg|jpg|png|gif|webp)$/i.test(file.originalname);
+    ok ? cb(null, true) : cb(new Error('Only image files allowed (jpg, png, gif, webp)'));
+  },
+});
+
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 
@@ -44,9 +56,9 @@ app.use(session({
   saveUninitialized: false,
 }));
 
-// ── ROUTES: Pages ─────────────────────────────────────────────
+// ── PAGE ROUTES ───────────────────────────────────────────────
 
-// Home — list all presentations
+// Home
 app.get('/', async (req, res) => {
   try {
     const [rows] = await db.query(
@@ -117,13 +129,21 @@ app.get('/view', async (req, res) => {
   }
 });
 
-// ── ROUTES: API ───────────────────────────────────────────────
+// ── API ROUTES ────────────────────────────────────────────────
 
 // Upload image
-app.post('/api/upload_image', upload.single('image'), (req, res) => {
-  if (!req.file) return res.json({ success: false, message: 'No image provided' });
-  const filePath = 'uploads/images/' + req.file.filename;
-  res.json({ success: true, file_path: filePath, file_name: req.file.filename });
+app.post('/api/upload_image', (req, res) => {
+  upload.single('image')(req, res, (err) => {
+    if (err) {
+      // Multer error (file type / size) or folder error
+      return res.json({ success: false, message: err.message });
+    }
+    if (!req.file) {
+      return res.json({ success: false, message: 'No image provided' });
+    }
+    const filePath = 'uploads/images/' + req.file.filename;
+    res.json({ success: true, file_path: filePath, file_name: req.file.filename });
+  });
 });
 
 // Save presentation
@@ -218,7 +238,6 @@ app.get('/api/get_presentations', async (req, res) => {
 // Delete presentation
 app.post('/api/delete_presentation', async (req, res) => {
   const id = parseInt(req.body.id);
-  const fs = require('fs');
   try {
     const [slides] = await db.execute(
       'SELECT image_path FROM slides WHERE presentation_id = ?', [id]
@@ -244,7 +263,6 @@ app.post('/api/generate_pptx', async (req, res) => {
 
   try {
     const { generatePPTX } = require('./lib/pptx_generator');
-    const fs = require('fs');
     const pptxPath = await generatePPTX(presentation_id, db);
 
     if (pptxPath && fs.existsSync(pptxPath)) {
