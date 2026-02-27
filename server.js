@@ -12,9 +12,9 @@ const PORT = process.env.PORT || 3000;
 // ─────────────────────────────────────────────────────────────
 const db = mysql.createPool({
   host:     'localhost',                  // always localhost on Hostinger
-  user:     'u123456789_yourdbuser',      // your DB username
-  password: 'YourDBPassword',            // your DB password
-  database: 'u123456789_yourdbname',      // your DB name
+  user:     'u966260443_ppt',      // your DB username
+  password: 'Makelabs@123',            // your DB password
+  database: 'u966260443_ppt',      // your DB name
   waitForConnections: true,
   connectionLimit: 10,
 });
