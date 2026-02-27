@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 // UPDATE THESE — hPanel → Databases → MySQL Databases
 // ─────────────────────────────────────────────────────────────
 const db = mysql.createPool({
-  host:     'localhost',                  // always localhost on Hostinger
+  host:     '127.0.0.1',                  // always localhost on Hostinger
   user:     'u966260443_ppt',      // your DB username
   password: 'Makelabs@123',            // your DB password
   database: 'u966260443_ppt',      // your DB name
